@@ -191,6 +191,78 @@ def _resolve_asset_path(asset_rel: str, extract_root: str) -> str:
     return os.path.normpath(os.path.join(extract_root, asset_rel.replace("/", os.sep)))
 
 
+def _looks_like_windows_abs(s: str) -> bool:
+    """True for ``C:\\foo`` / ``C:/foo`` — on POSIX, :func:`os.path.isabs` is False for these."""
+    s = s.strip()
+    return len(s) >= 3 and s[1] == ":" and s[2] in "\\/"
+
+
+def _find_asset_by_basename(extract_root: str, want_basename: str) -> str | None:
+    """Locate ``want_basename`` under ``assets/``.
+
+    Zip entries use ``{ASSETS}/{i:03d}_{original_basename}``; manifests may
+    still list a stale absolute path whose basename matches ``original_basename``.
+    """
+    if not want_basename:
+        return None
+    assets_dir = os.path.join(extract_root, ASSETS)
+    if not os.path.isdir(assets_dir):
+        return None
+    for name in os.listdir(assets_dir):
+        path = os.path.join(assets_dir, name)
+        if not os.path.isfile(path):
+            continue
+        if name == want_basename:
+            return os.path.normpath(path)
+        if len(name) >= 4 and name[:3].isdigit() and name[3] == "_":
+            if name[4:] == want_basename:
+                return os.path.normpath(path)
+    return None
+
+
+def resolve_manifest_path(stored: str | None, extract_root: str) -> str:
+    """Turn a path stored in a manifest into a path that exists under *extract_root*.
+
+    Handles:
+
+    - Relative paths such as ``assets/001_foo.jpg`` (normal export).
+    - Stale **absolute** paths from the machine where the zip was built; the
+      file is looked up by basename inside ``assets/`` (older exports / reuse
+      of a downloaded zip on another host).
+    - Absolute paths that embed ``.../assets/...`` (try the tail).
+    """
+    if not isinstance(stored, str):
+        return ""
+    s = stored.strip()
+    if not s:
+        return ""
+    if os.path.isfile(s):
+        return os.path.normpath(os.path.abspath(s))
+    stale_abs = os.path.isabs(s) or _looks_like_windows_abs(s)
+    # Typical case: relative arcname in manifest (e.g. assets/001_foo.jpg)
+    if not stale_abs:
+        rel = _resolve_asset_path(s, extract_root)
+        if os.path.isfile(rel):
+            return rel
+    else:
+        # Absolute or Windows path but missing (wrong machine / cleaned temp dir)
+        norm = s.replace("\\", "/")
+        if "/assets/" in norm:
+            tail = norm.split("/assets/", 1)[-1].lstrip("/")
+            if tail:
+                rel = _resolve_asset_path(tail, extract_root)
+                if os.path.isfile(rel):
+                    return rel
+    want = os.path.basename(s.replace("\\", "/"))
+    found = _find_asset_by_basename(extract_root, want)
+    if found:
+        return found
+    # Best-effort relative join for odd manifests; stale absolute → keep string for UI
+    if not stale_abs:
+        return _resolve_asset_path(s, extract_root)
+    return s
+
+
 def load_snapshot_from_zip_bytes(data: bytes) -> tuple[dict[str, Any], str]:
     """Extract zip to a temp directory and return ``(manifest, extract_root)``."""
 
@@ -247,10 +319,7 @@ def apply_manifest_to_session(
     images: list[ImageData] = []
     for row in imgs_raw:
         p = row.get("path")
-        if isinstance(p, str) and p and not os.path.isabs(p):
-            full = _resolve_asset_path(p, extract_root)
-        else:
-            full = str(p or "")
+        full = resolve_manifest_path(p, extract_root) if isinstance(p, str) and p else str(p or "")
         bbox = row.get("bbox_wgs84")
         if isinstance(bbox, list) and len(bbox) == 4:
             bbox_t = tuple(float(x) for x in bbox)
@@ -281,8 +350,8 @@ def apply_manifest_to_session(
                 fc = dict(f)
                 ev = fc.get("evidence_images") or []
                 fc["evidence_images"] = [
-                    _resolve_asset_path(ep, extract_root)
-                    if isinstance(ep, str) and ep and not os.path.isabs(ep)
+                    resolve_manifest_path(ep, extract_root)
+                    if isinstance(ep, str)
                     else ep
                     for ep in ev
                 ]
@@ -303,8 +372,8 @@ def apply_manifest_to_session(
                 r.lower().endswith(ext)
                 for ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp")
             ):
-                if r and not os.path.isabs(r):
-                    data["result"] = _resolve_asset_path(r, extract_root)
+                if r:
+                    data["result"] = resolve_manifest_path(r, extract_root)
                 step["data"] = data
         fixed_steps.append(step)
     session_state["inv_steps"] = fixed_steps
