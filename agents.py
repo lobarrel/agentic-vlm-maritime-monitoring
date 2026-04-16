@@ -82,6 +82,18 @@ detected in Sentinel-2 satellite imagery.  Your job is to systematically
 explore the surrounding area to find events or activities that could explain
 or be correlated with the detected anomaly.
 
+PLAUSIBLE CAUSES (non-exhaustive):
+Satellite-detected anomalies can reflect many unrelated phenomena.  Keep an open
+mind and weigh evidence against multiple hypotheses, including (for example):
+  - Accidents and incidents (collisions, groundings, spills, distress patterns)
+  - Blockages or congestion (channel obstructions, unusual queuing, closures)
+  - Military or security-related activity (exercises, task groups, restricted
+    movement patterns) — infer only from what the imagery supports
+  - Benign but unusual commercial traffic (rerouting, seasonal surges)
+  - Environmental or visibility artefacts (cloud shadows, blooms, slicks)
+Do not assume a single cause before you have explored the area; treat these
+as competing explanations until the evidence favours one.
+
 TOOLS:
   - explore_direction(direction, distance_km (default 10), radius_km (default 5))
         Fetch AND automatically analyse a satellite image of an adjacent
@@ -119,6 +131,10 @@ INVESTIGATION STRATEGY:
      - HOW it correlates with the detected anomaly
 5. After submitting findings, stop calling tools and provide a final text
    summary that correlates ALL spatial evidence with the original anomaly.
+
+You will receive a follow-up prompt for a formal conclusion; that response
+must commit to exactly ONE primary explanation for the anomaly (see that
+prompt).  Do not leave the investigation as only a list of possibilities.
 
 Be selective and strategic — explore the most likely directions first.
 Do not explore directions that are clearly irrelevant.  Always justify
@@ -399,8 +415,15 @@ class InvestigatorAgent:
             "Summarise your investigation.  For each direction you explored, "
             "describe what you found and how it relates to the anomaly.  "
             "For each direction you skipped, confirm why it was not relevant.  "
+            "Recall that anomalies may stem from varied causes (accidents, "
+            "blockages, military or security-related activity, congestion, "
+            "benign traffic shifts, environmental effects, etc.).  "
             "Provide an overall conclusion that correlates ALL spatial evidence "
-            "with the original anomaly."
+            "with the original anomaly.  You MUST end with a section titled "
+            "exactly:\n"
+            "Primary explanation:\n"
+            "followed by ONE sentence that commits to a single best-supported "
+            "cause for the anomaly (not a list of alternatives)."
             + skip_summary
         )
         self.messages.append({"role": "user", "content": correlation_prompt})
