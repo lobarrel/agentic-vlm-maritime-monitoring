@@ -47,14 +47,12 @@ Input (lat, lon, timestamp)
 
 - **Python 3.10+**
 - **Ollama Cloud API key** — generate one at https://ollama.com/settings/keys
-- Internet access to reach the Ollama Cloud API, Element84 STAC API, and
-  S3-hosted COGs
 
 ## Setup
 
 ```bash
 # Clone / navigate to the project directory
-cd maritime-traffic-monitoring
+cd agentic-vlm-maritime-monitoring
 
 # Create a virtual environment (recommended)
 python -m venv .venv
@@ -82,14 +80,6 @@ You can enter your API key directly in the sidebar, or pre-set it via the
 environment variable.  The sidebar also lets you switch the host to a local
 Ollama instance if needed.
 
-This opens a browser window with:
-- **Sidebar** for API key, host, target coordinates, date, and search parameters
-- **Image gallery** displaying the fetched Sentinel-2 scenes with metadata
-- **Monitor Agent panel** showing the full analysis and anomaly verdict
-- **Investigation tabs** with step-by-step tool calls, evidence & findings,
-  and a correlation view linking investigation results to the initial anomaly
-- **Download button** to export the structured JSON report
-
 ### CLI
 
 ```bash
@@ -108,8 +98,6 @@ python main.py --lat 51.9 --lon 4.5 --output report.json
 # Defaults to today's date if --timestamp is omitted
 python main.py --lat 36.0 --lon -5.5
 
-# Use a local Ollama instance instead of cloud
-OLLAMA_HOST=http://localhost:11434 python main.py --lat 36.0 --lon -5.5
 ```
 
 ### CLI Arguments
@@ -139,30 +127,27 @@ In-code constants in `config.py`:
 
 | Constant                      | Value | Description                              |
 |-------------------------------|-------|------------------------------------------|
-| `SEARCH_RADIUS_KM`           | 30    | Radius around target for image search    |
-| `MAX_IMAGES`                  | 5     | Maximum Sentinel-2 images to fetch       |
-| `MAX_CLOUD_COVER`            | 30    | Maximum cloud cover percentage           |
+| `SEARCH_RADIUS_KM`            | 15    | Radius around target for image search    |
+| `MAX_IMAGES`                  | 4     | Maximum Sentinel-2 images to fetch       |
+| `MAX_CLOUD_COVER`             | 30    | Maximum cloud cover percentage           |
 | `INVESTIGATOR_MAX_ITERATIONS` | 10    | Max tool-calling loop iterations         |
 
 ## How It Works
 
 ### 1. Image Acquisition
 
-The STAC fetcher queries the Element84 Earth Search API for up to 5 recent
-Sentinel-2 L2A scenes covering a 30 km radius around the target, filtered to
-≤30% cloud cover.  It downloads only the `visual` (TCI) asset — a pre-composed
+The STAC fetcher queries the Element84 Earth Search API for recent
+Sentinel-2 L2A scenes covering a specified radius around the target.  
+It downloads only the `visual` (TCI) asset — a pre-composed
 RGB Cloud-Optimized GeoTIFF at 10 m/pixel — using windowed reads to avoid
 fetching the entire ~110 km tile.
 
 ### 2. Monitor Agent
 
-The monitor sends all images to `qwen3.5` as a temporal sequence and asks
-it to:
-- Count and locate vessels per image
-- Assess port and anchorage activity
-- Compare across dates for traffic pattern changes
-- Flag anomalies (unusual clustering, sudden changes, vessels in unexpected
-  locations)
+The monitor sends all images to the VLM as a temporal sequence and asks
+it to analyze maritime activity, compare across dates for traffic pattern changes
+and flag anomalies (unusual clustering, sudden changes, vessels in unexpected
+locations)
 
 The model returns structured analysis ending with an anomaly verdict.
 
@@ -186,24 +171,15 @@ a final correlation summary linking its evidence to the original anomaly.
 The output is a structured JSON report containing the monitor assessment,
 any investigation findings, and the correlation analysis.
 
+The full analysis can also be downloaded as a .zip file and can be later uploaded
+to restore the dashboard and visually inspect the results.
+
 ## Limitations
 
 - **10 m resolution**: vessels smaller than ~30 m may not be detectable
 - **Cloud cover**: maritime areas can have persistent cloud; some images may
   be partially occluded despite the filter
-- **VLM accuracy**: `qwen3.5` is a general-purpose model, not fine-tuned
+- **VLM accuracy**: Ollama provides general-purpose models, not fine-tuned
   for maritime detection — appropriate for a PoC but not production use
-- **Revisit time**: Sentinel-2 revisits every ~5 days; the 3–5 images may
-  span 2–4 weeks
-
-## Project Structure
-
-```
-config.py            Configuration constants
-stac_fetcher.py      STAC search + COG windowed download
-image_processor.py   Crop, normalise, save as PNG
-tools.py             Investigator agent tool definitions
-agents.py            Monitor and Investigator agent logic
-main.py              CLI entry point and orchestration
-gui.py               Streamlit GUI dashboard
-```
+- **Revisit time**: Sentinel-2 revisits every 2-5 days; the fetched images may
+  span across weeks
