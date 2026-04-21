@@ -5,43 +5,16 @@ onboard a satellite to monitor maritime traffic from Sentinel-2 imagery.
 
 The system fetches recent satellite images, analyses them for ship positions
 and traffic patterns, detects anomalies, and — when something unusual is
-found — autonomously launches an investigation that explores surrounding areas
+found — autonomously launches an investigation agent that explores surrounding areas
 to explain the anomaly.
 
-## Architecture
+## Use Case Example: The Ever Given Incident
+To demonstrate the application on a real-world scenario, we used the Ever Given incident — a 6-day blockage of the Suez Canal in March 2021, when a 400-meter container ship ran aground and halted global trade. The event is well-suited for testing real-time satellite intelligence, as both the accumulation of vessels in the bay and the grounded ship itself are visible in publicly available Sentinel-2 imagery.
 
-```
-Input (lat, lon, timestamp)
-        │
-        ▼
-┌───────────────┐     Element84 STAC API
-│  STAC Fetcher │────────────────────────► sentinel-2-l2a
-└───────┬───────┘     (pystac-client)       (COG visual asset)
-        │
-        ▼
-┌─────────────────┐
-│ Image Processor │   Windowed COG read → crop → PNG
-└───────┬─────────┘
-        │
-        ▼
-┌─────────────────┐
-│  Monitor Agent  │   qwen3.5 vision — per-image + temporal analysis
-└───────┬─────────┘
-        │
-   anomaly? ──no──► Report
-        │
-       yes
-        │
-        ▼
-┌──────────────────┐
-│ Investigator Agent │    qwen3.5 tool-calling loop
-│                    │   Tools: explore_direction, skip_direction,
-│                    │          analyze_image, submit_finding
-└───────┬────────────┘
-        │
-        ▼
-      Report (JSON)
-```
+Two pre-run analyses are included in the `examples/` folder, powered by different models (Gemini 3 Flash and Gemma 4).
+
+To explore the results, launch the GUI and upload either of these .zip archive from the sidebar. This loads the full analysis session, where you can inspect the fetched imagery, the agent's step-by-step reasoning, and the final findings.
+
 
 ## Prerequisites
 
@@ -106,7 +79,7 @@ python main.py --lat 36.0 --lon -5.5
 |---------------|----------|----------------------------------------------|
 | `--lat`       | yes      | Latitude of the target location              |
 | `--lon`       | yes      | Longitude of the target location             |
-| `--timestamp` | no       | ISO date/datetime (default: today)           |
+| `--timestamp` | no       | ISO date/datetime (default: 29/03/2021)      |
 | `--output`    | no       | Path to save the JSON report                 |
 | `-v`          | no       | Enable verbose debug logging                 |
 
@@ -127,10 +100,46 @@ In-code constants in `config.py`:
 
 | Constant                      | Value | Description                              |
 |-------------------------------|-------|------------------------------------------|
-| `SEARCH_RADIUS_KM`            | 15    | Radius around target for image search    |
+| `SEARCH_RADIUS_KM`            | 10    | Radius around target for image search    |
 | `MAX_IMAGES`                  | 4     | Maximum Sentinel-2 images to fetch       |
 | `MAX_CLOUD_COVER`             | 30    | Maximum cloud cover percentage           |
 | `INVESTIGATOR_MAX_ITERATIONS` | 10    | Max tool-calling loop iterations         |
+
+
+## Architecture
+
+```
+Input (lat, lon, timestamp)
+        │
+        ▼
+┌───────────────┐     Element84 STAC API
+│  STAC Fetcher │────────────────────────► sentinel-2-l2a
+└───────┬───────┘     (pystac-client)      
+        │
+        ▼
+┌─────────────────┐
+│ Image Processor │   Windowed COG read → crop → PNG
+└───────┬─────────┘
+        │
+        ▼
+┌─────────────────┐
+│  Monitor Agent  │   VLM — per-image + temporal analysis
+└───────┬─────────┘
+        │
+   anomaly? ──no──► Report
+        │
+       yes
+        │
+        ▼
+┌────────────────────┐
+│ Investigator Agent │   VLM tool-calling loop
+│                    │   Tools: explore_direction, skip_direction,
+│                    │          analyze_image, submit_finding
+└───────┬────────────┘
+        │
+        ▼
+      Report
+```
 
 ## How It Works
 
@@ -138,7 +147,7 @@ In-code constants in `config.py`:
 
 The STAC fetcher queries the Element84 Earth Search API for recent
 Sentinel-2 L2A scenes covering a specified radius around the target.  
-It downloads only the `visual` (TCI) asset — a pre-composed
+It downloads only the `visual` (True Color Image) asset — a pre-composed
 RGB Cloud-Optimized GeoTIFF at 10 m/pixel — using windowed reads to avoid
 fetching the entire ~110 km tile.
 
@@ -147,7 +156,7 @@ fetching the entire ~110 km tile.
 The monitor sends all images to the VLM as a temporal sequence and asks
 it to analyze maritime activity, compare across dates for traffic pattern changes
 and flag anomalies (unusual clustering, sudden changes, vessels in unexpected
-locations)
+locations, etc.)
 
 The model returns structured analysis ending with an anomaly verdict.
 
@@ -157,8 +166,8 @@ If an anomaly is detected, the investigator agent is spawned with the anomaly
 context and access to these tools:
 
 - **explore_direction**: fetch and analyse imagery adjacent to the anomaly (by default several recent Sentinel-2 dates of the same area for before/after comparison; optional `max_temporal_images=1` for a single pass)
-  along cardinal bearings **N, E, S, W** only (no diagonals)
-- **skip_direction**: record that a direction was not explored, with reasoning (same cardinal set)
+  along cardinal bearings **N, E, S, W**
+- **skip_direction**: record that a direction was not explored, with reasoning
 - **analyze_image**: ask the VLM a focused question about a specific image
 - **submit_finding**: record a conclusion with evidence and confidence level
 
@@ -182,4 +191,4 @@ to restore the dashboard and visually inspect the results.
 - **VLM accuracy**: Ollama provides general-purpose models, not fine-tuned
   for maritime detection — appropriate for a PoC but not production use
 - **Revisit time**: Sentinel-2 revisits every 2-5 days; the fetched images may
-  span across weeks
+  span across weeks, failing to detect short-duration anomalies

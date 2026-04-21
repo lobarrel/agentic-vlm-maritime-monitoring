@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import date
 
 import streamlit as st
 
@@ -99,6 +99,7 @@ _DEFAULTS = {
     "max_cloud": config.MAX_CLOUD_COVER,
     "max_images": config.MAX_IMAGES,
 }
+DEFAULT_SNAPSHOT_DATE = date(2021, 3, 29)
 
 # Keys cleared when a new analysis starts.  Must NOT include sidebar widget
 # keys (``lat``, ``lon``, ``snap_ts``, sliders): those are locked after the
@@ -117,7 +118,7 @@ for key, default in _DEFAULTS.items():
         st.session_state[key] = default
 
 if "snap_ts" not in st.session_state:
-    st.session_state["snap_ts"] = datetime.now(timezone.utc).date()
+    st.session_state["snap_ts"] = DEFAULT_SNAPSHOT_DATE
 
 # Apply snapshot before any widget with keys ``lat`` / ``snap_ts`` / … is
 # created; otherwise Streamlit forbids writing those session_state keys.
@@ -137,7 +138,7 @@ if _pending_bytes is not None:
 def _reset_session() -> None:
     for key, default in _DEFAULTS.items():
         st.session_state[key] = default
-    st.session_state["snap_ts"] = datetime.now(timezone.utc).date()
+    st.session_state["snap_ts"] = DEFAULT_SNAPSHOT_DATE
     st.session_state.pop("_loaded_snap_digest", None)
 
 
