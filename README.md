@@ -11,7 +11,7 @@ to explain the anomaly.
 ## Use Case Example: The Ever Given Incident
 To demonstrate the application on a real-world scenario, we used the Ever Given incident — a 6-day blockage of the Suez Canal in March 2021, when a 400-meter container ship ran aground and halted global trade. The event is well-suited for testing real-time satellite intelligence, as both the accumulation of vessels in the bay and the grounded ship itself are visible in publicly available Sentinel-2 imagery.
 
-Two pre-run analyses are included in the `examples/` folder, powered by different models (Gemini 3 Flash and Gemma 4).
+Two pre-run analyses are included in the `examples/` folder, powered by different models (Gemini 3 Flash, Gemma 4, Qwen 3.5).
 
 To explore the results, launch the GUI and upload either of these .zip archive from the sidebar. This loads the full analysis session, where you can inspect the fetched imagery, the agent's step-by-step reasoning, and the final findings.
 
