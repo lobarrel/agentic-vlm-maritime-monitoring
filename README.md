@@ -1,4 +1,4 @@
-# Maritime Traffic Monitoring — Agentic VLM Satellite PoC
+# Agentic VLM for Maritime Traffic Monitoring
 
 A proof-of-concept demonstrating how agentic vision-language models can run
 onboard a satellite to monitor maritime traffic from Sentinel-2 imagery.
@@ -94,13 +94,13 @@ python main.py --lat 36.0 --lon -5.5
 All tuneable parameters live in `config.py` and can be overridden via
 environment variables:
 
-| Variable         | Default                      | Description                        |
-|------------------|------------------------------|------------------------------------|
-| `OLLAMA_API_KEY` | *(empty)*                    | Ollama Cloud API key (required)    |
-| `OLLAMA_HOST`    | `https://ollama.com`         | Ollama endpoint (cloud or local)   |
-| `VLM_MODEL`      | `qwen3.5`                    | Model name for Ollama              |
-| `VLM_OUTPUT_DIR` | `./output`                   | Directory for final reports        |
-| `VLM_TEMP_DIR`   | `./tmp_images`               | Directory for downloaded imagery   |
+| Variable         | Default                       | Description                        |
+|------------------|-------------------------------|------------------------------------|
+| `OLLAMA_API_KEY` | *(empty)*                     | Ollama Cloud API key (required)    |
+| `OLLAMA_HOST`    | `https://ollama.com`          | Ollama endpoint (cloud or local)   |
+| `VLM_MODEL`      | `gemini-3-flash-preview:cloud`| Model name for Ollama              |
+| `VLM_OUTPUT_DIR` | `./output`                    | Directory for final reports        |
+| `VLM_TEMP_DIR`   | `./tmp_images`                | Directory for downloaded imagery   |
 
 In-code constants in `config.py`:
 
@@ -153,7 +153,7 @@ Input (lat, lon, timestamp)
 
 The STAC fetcher queries the Element84 Earth Search API for recent
 Sentinel-2 L2A scenes covering a specified radius around the target.  
-It downloads only the `visual` (True Color Image) asset — a pre-composed
+It downloads only the visual (True Color Image) asset — a pre-composed
 RGB Cloud-Optimized GeoTIFF at 10 m/pixel — using windowed reads to avoid
 fetching the entire ~110 km tile.
 
